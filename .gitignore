@@ -65,9 +65,10 @@ web_modules/
 .cache
 .parcel-cache
 
-# Vite build output
+# Vite build output and cache
 dist
 dist-ssr
+.vite/
 *.local
 
 # Build outputs
