@@ -83,9 +83,11 @@ const TableComponent = () => {
     
     for (const inputNum of inputNumbers) {
       if (inputNum > 0) {
+        // Group rows by page to batch API calls
+        const pageRequests = new Map<number, number[]>();
+        
         // Select all rows from 1 to inputNum
         for (let rowNum = 1; rowNum <= inputNum; rowNum++) {
-          // Calculate which page and position within that page
           const pageNumber = Math.ceil(rowNum / rows);
           const positionInPage = ((rowNum - 1) % rows) + 1;
           
@@ -96,20 +98,33 @@ const TableComponent = () => {
               newSelectedIds.add(item.id);
             }
           } else {
-            // Fetch data from the target page to get the item ID
-            try {
-              const response = await fetch(`https://api.artic.edu/api/v1/artworks?page=${pageNumber}&limit=${rows}`);
-              const result: ApiData = await response.json();
-              
+            // Group other pages for batch processing
+            if (!pageRequests.has(pageNumber)) {
+              pageRequests.set(pageNumber, []);
+            }
+            pageRequests.get(pageNumber)!.push(positionInPage);
+          }
+        }
+        
+        // Batch process all page requests in parallel
+        const apiPromises = Array.from(pageRequests.entries()).map(async ([pageNumber, positions]) => {
+          try {
+            const response = await fetch(`https://api.artic.edu/api/v1/artworks?page=${pageNumber}&limit=${rows}`);
+            const result: ApiData = await response.json();
+            
+            positions.forEach(positionInPage => {
               if (positionInPage <= result.data.length) {
                 const item = result.data[positionInPage - 1];
                 newSelectedIds.add(item.id);
               }
-            } catch (error) {
-              console.log('Error fetching data for row selection:', error);
-            }
+            });
+          } catch (error) {
+            console.log(`Error fetching data for page ${pageNumber}:`, error);
           }
-        }
+        });
+        
+        // Wait for all API calls to complete
+        await Promise.all(apiPromises);
       }
     }
     
